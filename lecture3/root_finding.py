@@ -7,8 +7,7 @@ def iterative_solver(func, derivative=None, x0=None, tol=1e-8, max_iter=100):
     Supports both single-variable and multi-variable cases.
 
     Args:
-        func (function): Target function. For fixed-point iteration, g(x). 
-                         For Newton's method, F(x).
+        func (function): Target function. For fixed-point iteration, g(x). For Newton's method, F(x).
         derivative (function or None): Derivative or Jacobian function. If None, fixed-point iteration is used.
         x0 (float or np.array): Initial guess (scalar or array).
         tol (float): Convergence tolerance.
