@@ -1,7 +1,8 @@
 """In this file, we define the dynamics class and various numerical integration methods."""
 
 import numpy as np
-import matplotlib.pyplot as plt
+
+from lecture3.root_finding import iterative_solver
 
 class Dynamics:
     def plot(self, trajectory, dt):
@@ -72,24 +73,18 @@ class Dynamics:
         Returns:
             np.array: Next state.
         """
-        next_state = state.copy()  # Initial guess
+        # Define the residual function for backward Euler
+        def residual(next_state):
+            return next_state - state - dt * self.dynamics_equation(next_state, control)
 
-        for _ in range(max_iter):
-            # Compute the residual g(next_state) = next_state - state - dt * f(next_state)
-            residual = next_state - state - dt * self.dynamics_equation(next_state, control)
+        # Define the Jacobian of the residual
+        def jacobian(next_state):
+            return np.eye(len(state)) - dt * self.jacobian_dynamics_equation(next_state, control)
 
-            # Use analytical Jacobian
-            jacobian = np.eye(len(state)) - dt * self.jacobian_dynamics_equation(next_state, control)
+        # Use iterative_solver to solve for the next state
+        next_state, _, _ = iterative_solver(residual, derivative=jacobian, x0=state, tol=tol, max_iter=max_iter)
 
-            # Newton's update
-            delta = np.linalg.solve(jacobian, -residual)
-            next_state += delta
-
-            # Check for convergence
-            if np.linalg.norm(delta) < tol:
-                return next_state
-
-        raise ValueError("Backward Euler did not converge within the maximum number of iterations.")
+        return next_state
 
     def rk4_step(self, state, control, dt):
         """
@@ -139,85 +134,3 @@ class Dynamics:
             trajectory.append(state)
 
         return np.array(trajectory)
-
-class PendulumDynamics(Dynamics):
-    """
-    Dynamics model for a simple pendulum.
-    """
-    def __init__(self, g=9.81, l=1.0):
-        self.g = g
-        self.l = l
-
-    def dynamics_equation(self, state, control=None):
-        """
-        Compute the dynamics of a simple pendulum.
-
-        Args:
-            state (np.array): Current state [theta, omega].
-            control (np.array): Control input (not used in simple pendulum).
-
-        Returns:
-            np.array: [dtheta/dt, domega/dt].
-        """
-        theta, omega = state
-        dtheta_dt = omega
-        domega_dt = -(self.g / self.l) * np.sin(theta)
-        return np.array([dtheta_dt, domega_dt])
-
-    def simulate(self, initial_state, control, dt, steps, method):
-        """
-        Simulate the pendulum dynamics and return the trajectory.
-
-        Args:
-            initial_state (np.array): Initial state of the system.
-            control (np.array): Control input to the system.
-            dt (float): Time step.
-            steps (int): Number of simulation steps.
-            method (str): Integration method ('forward_euler', 'backward_euler', 'rk4').
-
-        Returns:
-            np.array: Trajectory of states.
-        """
-        return super().simulate(initial_state, control, dt, steps, method)
-
-    def plot(self, trajectory, dt):
-        """
-        Plot the pendulum simulation trajectory.
-
-        Args:
-            trajectory (np.array): The trajectory of the states.
-            dt (float): Time step.
-        """
-        time = np.arange(0, len(trajectory) * dt, dt)
-        theta = trajectory[:, 0]
-        omega = trajectory[:, 1]
-
-        plt.figure(figsize=(10, 5))
-
-        plt.subplot(2, 1, 1)
-        plt.plot(time, theta)
-        plt.title('Pendulum Angle (Theta)')
-        plt.xlabel('Time (s)')
-        plt.ylabel('Theta (rad)')
-
-        plt.subplot(2, 1, 2)
-        plt.plot(time, omega)
-        plt.title('Pendulum Angular Velocity (Omega)')
-        plt.xlabel('Time (s)')
-        plt.ylabel('Omega (rad/s)')
-
-        plt.tight_layout()
-        plt.show()
-
-if __name__ == "__main__":
-    dt = 0.01
-    steps = 1000
-
-    pendulum = PendulumDynamics()
-    initial_state = np.array([np.pi / 4, 0.0])  # Initial state: 45 degrees, 0 angular velocity
-
-    # Simulate using RK4
-    trajectory = pendulum.simulate(initial_state, None, dt, steps, method='rk4')
-
-    # Plot the results
-    pendulum.plot(trajectory, dt)
