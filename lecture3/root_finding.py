@@ -31,6 +31,7 @@ def iterative_solver(func, derivative=None, x0=None, tol=1e-8, max_iter=100):
             else:  # Multi-variable case
                 delta = np.linalg.solve(D, -Fx)
             x_new = x + delta
+            # x_new = x + delta.item() if np.isscalar(x) else delta.reshape(x.shape)
         else:  # Fixed-point iteration
             x_new = Fx
 

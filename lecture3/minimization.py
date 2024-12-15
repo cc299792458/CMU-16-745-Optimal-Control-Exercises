@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 
 from lecture3.root_finding import iterative_solver  
 
-def minimization(f, grad_f, hessian_f, x0, tol=1e-6, max_iter=100):
+def minimization(f, grad_f, hessian_f, x0, tol=1e-6, max_iter=100, regularization=None):
     """
     Newton's method for minimizing a function using iterative_solver.
 
@@ -14,6 +14,7 @@ def minimization(f, grad_f, hessian_f, x0, tol=1e-6, max_iter=100):
         x0 (float or np.array): Initial guess.
         tol (float): Convergence tolerance.
         max_iter (int): Maximum number of iterations.
+        regularization (float or None): Small positive value added iteratively to the diagonal of the Hessian to ensure positive definiteness. If None, no regularization is applied.
 
     Returns:
         float: Minimum point.
@@ -26,7 +27,19 @@ def minimization(f, grad_f, hessian_f, x0, tol=1e-6, max_iter=100):
         return grad_f(x)  # The gradient acts as the residual
 
     def jacobian(x):
-        return hessian_f(x)  # The Hessian is the Jacobian of the gradient
+        hess = hessian_f(x)
+        if isinstance(hess, np.ndarray) and hess.ndim == 2 and regularization is not None:
+            # Ensure positive definiteness by iterative regularization
+            reg_value = regularization
+            while True:
+                try:
+                    # Check if Hessian is positive definite
+                    np.linalg.cholesky(hess)
+                    break
+                except np.linalg.LinAlgError:
+                    hess += reg_value * np.eye(hess.shape[0])
+                    reg_value *= 10  # Gradually increase regularization if needed
+        return hess
 
     # Store the iterates
     iterates = [x0]
@@ -47,10 +60,10 @@ if __name__ == "__main__":
     hessian_f = lambda x: np.array([[12 * x**2 + 6 * x - 2]])  # Return 2D Hessian for 1D problem
 
     # Initial guess
-    x0 = 2.0 # -1.5, 0.0
+    x0 = 0.0 # 1.0, -1.5
 
     # Perform minimization
-    x_min, f_min, iterations, iterates = minimization(f, grad_f, hessian_f, x0)
+    x_min, f_min, iterations, iterates = minimization(f, grad_f, hessian_f, x0, regularization=1e-5)
 
     print(f"Minimum at x = {x_min}, f(x) = {f_min}, iterations = {iterations}")
 
@@ -60,7 +73,12 @@ if __name__ == "__main__":
 
     plt.figure()
     plt.plot(x, y, label="f(x) = x^4 + x^3 - x^2 - x")
-    plt.scatter(iterates, [f(i) for i in iterates], color="red", label="Iterates")
+
+    # Use colors to distinguish iterations
+    colors = plt.cm.viridis(np.linspace(1, 0, len(iterates)))
+    for idx, (xi, yi) in enumerate(zip(iterates, [f(i) for i in iterates])):
+        plt.scatter(xi, yi, color=colors[idx], label=f"Iter {idx}" if idx == 0 else None)
+
     plt.xlabel("x")
     plt.ylabel("f(x)")
     plt.title("Function Minimization with Iterates")
