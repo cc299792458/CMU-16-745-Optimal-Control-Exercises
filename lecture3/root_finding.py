@@ -26,12 +26,11 @@ def iterative_solver(func, derivative=None, x0=None, tol=1e-8, max_iter=100):
 
         if derivative is not None:  # Newton's method
             D = np.array(derivative(x))  # Compute Derivative or Jacobian and ensure it's a NumPy array
-            if np.isscalar(x):  # Single-variable case
+            if np.isscalar(x) or (isinstance(x, np.ndarray) and x.shape == ()):  # Single-variable case
                 delta = -Fx / D
             else:  # Multi-variable case
                 delta = np.linalg.solve(D, -Fx)
-            x_new = x + delta
-            # x_new = x + delta.item() if np.isscalar(x) else delta.reshape(x.shape)
+            x_new = x + delta.item() if np.isscalar(x) else delta.reshape(x.shape)
         else:  # Fixed-point iteration
             x_new = Fx
 

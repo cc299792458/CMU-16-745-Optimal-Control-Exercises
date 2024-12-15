@@ -55,12 +55,12 @@ def minimization(f, grad_f, hessian_f, x0, tol=1e-6, max_iter=100, regularizatio
 
 if __name__ == "__main__":
     # Define the objective function, gradient, and Hessian for x^4 + x^3 - x^2 - x
-    f = lambda x: np.squeeze(x**4 + x**3 - x**2 - x) if isinstance(x, np.ndarray) else x**4 + x**3 - x**2 - x
-    grad_f = lambda x: 4 * x**3 + 3 * x**2 - 2 * x - 1
-    hessian_f = lambda x: np.array([[12 * x**2 + 6 * x - 2]])  # Return 2D Hessian for 1D problem
+    f = lambda x: x**4 + x**3 - x**2 - x if isinstance(x, np.ndarray) else np.array(x**4 + x**3 - x**2 - x)
+    grad_f = lambda x: 4 * x**3 + 3 * x**2 - 2 * x - 1 if isinstance(x, np.ndarray) else np.array(4 * x**3 + 3 * x**2 - 2 * x - 1)
+    hessian_f = lambda x: np.atleast_2d(np.squeeze(12 * x**2 + 6 * x - 2)) # Return 2D Hessian for 1D problem
 
     # Initial guess
-    x0 = 0.0 # 1.0, -1.5
+    x0 = 1.0 # 1.0, -1.5
 
     # Perform minimization
     x_min, f_min, iterations, iterates = minimization(f, grad_f, hessian_f, x0, regularization=1e-5)
