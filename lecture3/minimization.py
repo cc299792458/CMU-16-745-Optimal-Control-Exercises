@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 
 from lecture3.root_finding import iterative_solver  
 
-def minimization(f, grad_f, hessian_f, x0, tol=1e-6, max_iter=100, regularization=None):
+def minimization(f, grad_f, hessian_f, x0, tol=1e-6, max_iter=100, regularization=None, armijo_params=None):
     """
     Newton's method for minimizing a function using iterative_solver.
 
@@ -15,7 +15,8 @@ def minimization(f, grad_f, hessian_f, x0, tol=1e-6, max_iter=100, regularizatio
         tol (float): Convergence tolerance.
         max_iter (int): Maximum number of iterations.
         regularization (float or None): Small positive value added iteratively to the diagonal of the Hessian to ensure positive definiteness. If None, no regularization is applied.
-
+        armijo_params (dict or None): Parameters for Armijo Rule (alpha_0, rho, c). If None, no Armijo step is applied.
+        
     Returns:
         float: Minimum point.
         float: Function value at the minimum point.
@@ -49,7 +50,7 @@ def minimization(f, grad_f, hessian_f, x0, tol=1e-6, max_iter=100, regularizatio
         iterates.append(x.item() if isinstance(x, np.ndarray) else x)
         return residual(x)
 
-    x_min, _, iterations = iterative_solver(recording_residual, derivative=jacobian, x0=x0, tol=tol, max_iter=max_iter)
+    x_min, _, iterations = iterative_solver(recording_residual, derivative=jacobian, x0=x0, tol=tol, max_iter=max_iter, armijo_params=armijo_params)
 
     return x_min.item() if isinstance(x_min, np.ndarray) else x_min, f(x_min), iterations, iterates
 
@@ -60,10 +61,20 @@ if __name__ == "__main__":
     hessian_f = lambda x: np.atleast_2d(np.squeeze(12 * x**2 + 6 * x - 2)) # Return 2D Hessian for 1D problem
 
     # Initial guess
-    x0 = 1.0 # 1.0, -1.5
+    x0 = 0.0 # 1.0, -1.5
+
+    # Regularization parameter
+    regularization = 1e-5  # Ensures positive definiteness of the Hessian
+
+    # Armijo Rule parameters
+    armijo_params = {
+        "alpha_0": 1.0,  # Initial step size
+        "rho": 0.5,      # Reduction factor
+        "c": 1e-4        # Sufficient decrease constant
+    }
 
     # Perform minimization
-    x_min, f_min, iterations, iterates = minimization(f, grad_f, hessian_f, x0, regularization=1e-5)
+    x_min, f_min, iterations, iterates = minimization(f, grad_f, hessian_f, x0, regularization=regularization, armijo_params=armijo_params)
 
     print(f"Minimum at x = {x_min}, f(x) = {f_min}, iterations = {iterations}")
 

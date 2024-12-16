@@ -1,7 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-def iterative_solver(func, derivative=None, x0=None, tol=1e-8, max_iter=100):
+from lecture4.line_search import armijo_step
+
+def iterative_solver(func, derivative=None, x0=None, tol=1e-8, max_iter=100, armijo_params=None):
     """
     General iterative solver for fixed-point iteration or Newton's method.
     Supports both single-variable and multi-variable cases.
@@ -12,6 +14,7 @@ def iterative_solver(func, derivative=None, x0=None, tol=1e-8, max_iter=100):
         x0 (float or np.array): Initial guess (scalar or array).
         tol (float): Convergence tolerance.
         max_iter (int): Maximum number of iterations.
+        armijo_params (dict or None): Parameters for Armijo Rule (alpha_0, rho, c). If None, no Armijo step is applied.
 
     Returns:
         np.array or float: Approximation of the fixed point or root.
@@ -30,7 +33,9 @@ def iterative_solver(func, derivative=None, x0=None, tol=1e-8, max_iter=100):
                 delta = -Fx / D
             else:  # Multi-variable case
                 delta = np.linalg.solve(D, -Fx)
-            x_new = x + delta.item() if np.isscalar(x) else delta.reshape(x.shape)
+            delta = delta.item() if np.isscalar(x) else delta.reshape(x.shape)
+            alpha = armijo_step(func, lambda _: Fx, x, delta, **armijo_params) if armijo_params is not None else 1  # Apply armijo rule
+            x_new = x + alpha * delta
         else:  # Fixed-point iteration
             x_new = Fx
 
