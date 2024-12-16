@@ -25,7 +25,7 @@ def iterative_solver(func, derivative=None, x0=None, tol=1e-8, max_iter=100, arm
     residuals = []
 
     for i in range(max_iter):
-        Fx = np.array(func(x))  # Evaluate the function and ensure it's a NumPy array
+        Fx = np.array(func(x, True))  # Evaluate the function and ensure it's a NumPy array
 
         if derivative is not None:  # Newton's method
             D = np.array(derivative(x))  # Compute Derivative or Jacobian and ensure it's a NumPy array

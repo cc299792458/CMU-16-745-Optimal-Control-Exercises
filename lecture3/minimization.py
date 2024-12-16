@@ -46,8 +46,9 @@ def minimization(f, grad_f, hessian_f, x0, tol=1e-6, max_iter=100, regularizatio
     iterates = [x0]
 
     # Use iterative_solver to minimize the function
-    def recording_residual(x):
-        iterates.append(x.item() if isinstance(x, np.ndarray) else x)
+    def recording_residual(x, record_iterates=False):
+        if record_iterates:  # Only store points from main iterations
+            iterates.append(x.item() if isinstance(x, np.ndarray) else x)
         return residual(x)
 
     x_min, _, iterations = iterative_solver(recording_residual, derivative=jacobian, x0=x0, tol=tol, max_iter=max_iter, armijo_params=armijo_params)
@@ -64,7 +65,7 @@ if __name__ == "__main__":
     x0 = 0.0 # 1.0, -1.5
 
     # Regularization parameter
-    regularization = 1e-5  # Ensures positive definiteness of the Hessian
+    regularization = 1  # Ensures positive definiteness of the Hessian
 
     # Armijo Rule parameters
     armijo_params = {
