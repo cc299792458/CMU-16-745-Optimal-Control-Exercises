@@ -3,6 +3,13 @@ import matplotlib.pyplot as plt
 
 from lecture3.root_finding import iterative_solver  
 
+# NOTE: For f(x) = x^4 + x^3 - x^2 - x, starting from x_0 = 0.0:
+# 1. Without Armijo: Newton’s method overshoots but eventually finds the local minimum at x = 0.64.
+# 2. With Armijo: The method stops at x ≈ 0.22, a non-minimum point, due to strict step size constraints and regularization.
+# Conclusion:
+# Armijo can stabilize optimization but risks stalling in non-optimal regions,
+# while Newton without step size control may overshoot but still reach minima.
+
 def minimization(f, grad_f, hessian_f, x0, tol=1e-6, max_iter=100, regularization=None, armijo_params=None):
     """
     Newton's method for minimizing a function using iterative_solver.
