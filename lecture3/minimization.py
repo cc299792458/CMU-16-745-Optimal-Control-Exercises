@@ -65,7 +65,7 @@ if __name__ == "__main__":
     x0 = 0.0 # 1.0, -1.5
 
     # Regularization parameter
-    regularization = 1  # Ensures positive definiteness of the Hessian
+    regularization = 1e-5  # Ensures positive definiteness of the Hessian
 
     # Armijo Rule parameters
     armijo_params = {
