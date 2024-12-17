@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-def solve_kkt_system(grad_f, hessian_f, c_list, grad_c_list, hessian_c_list=None, x0=None, lambda0=None, tol=1e-6, max_iter=50):
+def solve_equality_constrained_kkt(grad_f, hessian_f, c_list, grad_c_list, hessian_c_list=None, x0=None, lambda0=None, tol=1e-6, max_iter=50):
     """
     Solves the equality-constrained optimization problem using the KKT conditions with Newton or Gauss-Newton methods.
 
@@ -143,7 +143,7 @@ if __name__ == "__main__":
     lambda0 = np.array([0.0], dtype=float)
 
     # Solve the KKT system using Newton's method
-    x_sol, lambda_sol, x_history = solve_kkt_system(grad_f, hessian_f, c_list, grad_c_list, hessian_c_list, x0, lambda0)
+    x_sol, lambda_sol, x_history = solve_equality_constrained_kkt(grad_f, hessian_f, c_list, grad_c_list, hessian_c_list, x0, lambda0)
     print(f"Optimal solution x: {x_sol}")
     print(f"Optimal lambda: {lambda_sol}")
 
