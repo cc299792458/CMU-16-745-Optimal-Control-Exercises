@@ -42,7 +42,8 @@ def solve_kkt_system(grad_f, hessian_f, c_list, grad_c_list, hessian_c_list=None
                 H += lambda_i * hessian_c(x)
         else:
             # Gauss-Newton method
-            H += C.T @ C
+            # H += C.T @ C
+            pass
 
         # Form the KKT system
         KKT_matrix = np.block([
@@ -135,7 +136,7 @@ if __name__ == "__main__":
     grad_c_list = [lambda x: np.array([2.0 * x[0] + 2.0, -1.0])]  # returns (2,)
     hessian_c_list = [lambda x: np.array([[2.0, 0.0],
                                           [0.0, 0.0]])]
-    # hessian_c_list = None   # Gauss-Newton method
+    hessian_c_list = None   # Gauss-Newton method
 
     # Initial guesses as float arrays
     x0 = np.array([-1.0, -1.0], dtype=float)
