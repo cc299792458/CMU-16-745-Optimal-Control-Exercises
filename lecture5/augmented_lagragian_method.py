@@ -106,7 +106,16 @@ def solve_inequality_constrained_kkt(f, grad_f, hessian_f,
             r = np.array([h(x)[0] for h in h_list])  # Residuals of constraints
 
             dx, _ = solve_kkt_system(H, A, g, r, beta=beta)
-            x += dx
+            
+            # Line search to determine step length
+            alpha = 1.0  # Initial step size
+            c1 = 1e-4    # Armijo parameter
+            while f_aug(x + alpha * dx) > f_aug(x) + c1 * alpha * np.dot(grad_f_aug(x), dx):
+                alpha *= 0.5  # Reduce step size
+
+            # Update x
+            x += alpha * dx
+
             if np.linalg.norm(dx) < tol:
                 break
         return x
