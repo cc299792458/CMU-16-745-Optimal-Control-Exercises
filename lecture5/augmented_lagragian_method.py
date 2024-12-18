@@ -97,8 +97,9 @@ def solve_inequality_constrained_kkt(f, grad_f, hessian_f,
 
     def solve_unconstrained_newton(x):
         """
-        Solve the unconstrained subproblem using the KKT system.
+        Solve the unconstrained subproblem using the KKT system with line search.
         """
+        x_inner_history = [x.copy()]  # Initialize history with the starting point
         for _ in range(max_inner):
             H = hess_f_aug(x)
             g = grad_f_aug(x)
@@ -115,25 +116,26 @@ def solve_inequality_constrained_kkt(f, grad_f, hessian_f,
 
             # Update x
             x += alpha * dx
+            x_inner_history.append(x.copy())  # Save the updated x
 
             if np.linalg.norm(dx) < tol:
                 break
-        return x
+        return x, x_inner_history
 
     x_history = [x.copy()]
 
     for outer_iter in range(max_outer):
-        x = solve_unconstrained_newton(x)
-        h_vals = np.array([h(x)[0] for h in h_list])
-        mu = np.maximum(0.0, mu + rho*h_vals)
+        x, x_inner_history = solve_unconstrained_newton(x)
+        x_history.extend(x_inner_history)  # Append the inner history to the overall history
 
-        x_history.append(x.copy())
+        h_vals = np.array([h(x)[0] for h in h_list])
+        mu = np.maximum(0.0, mu + rho * h_vals)
 
         feasible = np.all(h_vals < tol)
         complementarity = np.max(np.abs(mu * h_vals))
 
         if feasible and complementarity < tol:
-            print(f"ALM converged in {outer_iter+1} outer iterations.")
+            print(f"ALM converged in {outer_iter + 1} outer iterations.")
             break
         else:
             if rho < rho_max:
