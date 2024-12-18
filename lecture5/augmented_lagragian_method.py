@@ -14,9 +14,9 @@ def solve_inequality_constrained_kkt(f, grad_f, hessian_f,
     using Augmented Lagrangian Method (ALM).
 
     This version:
-    - Always includes mu_i * h_i(x) terms.
+    - Includes mu_i * h_i(x) terms.
     - Uses hessian_h_list if provided to incorporate second-order constraint info.
-    - Adds a small regularization beta*I to Hessian to ensure numerical stability.
+    - Adds regularization to KKT system to ensure numerical stability.
     """
 
     x = x0.copy().astype(float)
@@ -30,7 +30,7 @@ def solve_inequality_constrained_kkt(f, grad_f, hessian_f,
         val = f(x)
         for i in range(m):
             hi = h_list[i](x)[0]
-            viol = max(0, hi)   
+            viol = max(0, hi)
             val += mu[i]*hi + 0.5*rho*(viol**2)
         return val
 
@@ -51,35 +51,61 @@ def solve_inequality_constrained_kkt(f, grad_f, hessian_f,
             gh = grad_h_list[i](x)
 
             # If we have second-order info of constraints:
-            # L = f(x) + sum mu_i h_i(x)
-            # Hessian of L w.r.t x: H_f + sum mu_i * Hessian(h_i(x))
             if hessian_h_list is not None:
-                H += mu[i]*hessian_h_list[i](x)
+                H += mu[i] * hessian_h_list[i](x)
 
-            # If hi>0, add penalty Hessian: rho * gh * gh^T
+            # If hi > 0, add penalty Hessian: rho * gh * gh^T
             if hi > 0:
                 H += rho * np.outer(gh, gh)
-        
-        # Regularization to ensure H is well-conditioned (H + beta*I)
-        while True:
-            reg_value = beta
-            try:
-                # Check if Hessian is positive definite
-                np.linalg.cholesky(H)
-                break
-            except np.linalg.LinAlgError:
-                H += reg_value * np.eye(H.shape[0])
-                reg_value *= 10  # Gradually increase regularization if needed
         return H
 
+    def solve_kkt_system(H, A, g, r, beta=1e-6):
+        """
+        Solve the KKT system with regularization to ensure m negative eigenvalues.
+        K = [H, A^T; A, -beta*I]
+        """
+        n, m = H.shape[0], A.shape[0]
+        reg_matrix_H = np.zeros((n, n))
+        reg_matrix_A = np.zeros((m, m))
+        reg_value = beta
+
+        while True:
+            # Construct the regularized KKT matrix
+            K = np.block([
+                [H + reg_matrix_H, A.T],
+                [A, -reg_matrix_A]
+            ])
+            rhs = np.concatenate([-g, -r])  # Right-hand side: [-g; -r]
+
+            try:
+                # Compute eigenvalues to check distribution
+                eigvals = np.linalg.eigvalsh(K)
+                num_positive = np.sum(eigvals > 0)
+                num_negative = np.sum(eigvals < 0)
+
+                if num_positive == n and num_negative == m:
+                    # Solve the regularized KKT system
+                    solution = np.linalg.solve(K, rhs)
+                    return solution[:n], solution[n:]  # Return dx, d_lambda
+            except np.linalg.LinAlgError:
+                pass  # Continue increasing regularization if needed
+            
+            # Increase regularization value if conditions are not met
+            reg_matrix_H += reg_value * np.eye(n)
+            reg_matrix_A += reg_value * np.eye(m)
+            reg_value *= 10
+
     def solve_unconstrained_newton(x):
-        # Solve the unconstrained subproblem using Newton's method on f_aug
+        """
+        Solve the unconstrained subproblem using the KKT system.
+        """
         for _ in range(max_inner):
-            g = grad_f_aug(x)
             H = hess_f_aug(x)
-            if np.linalg.norm(g) < tol:
-                break
-            dx = np.linalg.solve(H, -g)
+            g = grad_f_aug(x)
+            A = np.vstack([grad_h(x) for grad_h in grad_h_list])
+            r = np.array([h(x)[0] for h in h_list])  # Residuals of constraints
+
+            dx, _ = solve_kkt_system(H, A, g, r, beta=beta)
             x += dx
             if np.linalg.norm(dx) < tol:
                 break
