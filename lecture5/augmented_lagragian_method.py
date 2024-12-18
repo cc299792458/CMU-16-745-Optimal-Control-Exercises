@@ -144,10 +144,10 @@ if __name__ == "__main__":
     grad_f = lambda x: Q @ (x - np.array([1.,0.]))
     hessian_f = lambda x: Q
 
-    # Constraint: h(x)= x1-(x0^2+2x0) ≤0
+    # Constraint: h(x)= (x0^2+2x0)-x1 ≤0
     # grad h: [2x0+2, -1]
     # Hessian h: [[2,0],[0,0]]
-    h_list = [lambda x: np.array([x[1] - (x[0]**2+2*x[0])])]
+    h_list = [lambda x: np.array([ (x[0]**2 + 2.0*x[0] - x[1]) ])]
     grad_h_list = [lambda x: np.array([2.0*x[0]+2.0, -1.0])]
     hessian_h_list = [lambda x: np.array([[2.0, 0.0],
                                           [0.0, 0.0]])]
