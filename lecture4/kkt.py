@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-def solve_equality_constrained_kkt(grad_f, hessian_f, c_list, grad_c_list, hessian_c_list=None, x0=None, lambda0=None, tol=1e-6, max_iter=50):
+def solve_equality_constrained_kkt(grad_f, hessian_f, c_list, grad_c_list, hessian_c_list=None, x0=None, lambda0=None, tol=1e-6, max_iter=50, beta=1e-6):
     """
     Solves the equality-constrained optimization problem using the KKT conditions with Newton or Gauss-Newton methods.
 
@@ -15,6 +15,7 @@ def solve_equality_constrained_kkt(grad_f, hessian_f, c_list, grad_c_list, hessi
         lambda0 (np.ndarray): Initial guess for Lagrange multipliers, shape (m,).
         tol (float): Convergence tolerance.
         max_iter (int): Maximum number of iterations.
+        beta (float): Small value added iteratively to the diagonal of the Hessian for regularization.
 
     Returns:
         tuple: Solution for x (n,), lambda (m,), and iteration history (list of x).
@@ -44,12 +45,34 @@ def solve_equality_constrained_kkt(grad_f, hessian_f, c_list, grad_c_list, hessi
             # Gauss-Newton method
             # H += C.T @ C
             pass
+        
+        n, m = H.shape[0], C.shape[0]
+        reg_matrix_H = np.zeros((n, n))
+        reg_matrix_C = np.zeros((m, m))
+        reg_value = beta
 
-        # Form the KKT system
-        KKT_matrix = np.block([
-            [H, C.T],
-            [C, np.zeros((C.shape[0], C.shape[0]))]
-        ])
+        # Construct the regularized KKT matrix
+        while True:
+            KKT_matrix = np.block([
+                [H + reg_matrix_H, C.T],
+                [C, -reg_matrix_C]
+            ])
+        
+            try:
+                # Compute eigenvalues to check distribution
+                eigvals = np.linalg.eigvalsh(KKT_matrix)
+                num_positive = np.sum(eigvals > 0)
+                num_negative = np.sum(eigvals < 0)
+
+                if num_positive == n and num_negative == m:
+                    break
+            except np.linalg.LinAlgError:
+                pass  # Continue increasing regularization if needed
+            
+            # Increase regularization value if conditions are not met
+            reg_matrix_H += reg_value * np.eye(n)
+            reg_matrix_C += reg_value * np.eye(m)
+            reg_value *= 1.5    # # NOTE: This value can be tuned for the good performance
 
         # KKT_rhs is (n+m,) float
         KKT_rhs = -np.concatenate((grad + C.T @ lambda_, c_vals))
@@ -136,10 +159,10 @@ if __name__ == "__main__":
     grad_c_list = [lambda x: np.array([2.0 * x[0] + 2.0, -1.0])]  # returns (2,)
     hessian_c_list = [lambda x: np.array([[2.0, 0.0],
                                           [0.0, 0.0]])]
-    hessian_c_list = None   # Gauss-Newton method
+    # hessian_c_list = None   # Gauss-Newton method
 
     # Initial guesses as float arrays
-    x0 = np.array([-1.0, -1.0], dtype=float)
+    x0 = np.array([-3.0, 2.0], dtype=float)
     lambda0 = np.array([0.0], dtype=float)
 
     # Solve the KKT system using Newton's method

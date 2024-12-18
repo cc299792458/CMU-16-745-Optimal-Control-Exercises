@@ -110,9 +110,9 @@ def solve_inequality_constrained_kkt(f, grad_f, hessian_f,
             
             # Line search to determine step length
             alpha = 1.0  # Initial step size
-            c1 = 1e-4    # Armijo parameter
-            while f_aug(x + alpha * dx) > f_aug(x) + c1 * alpha * np.dot(grad_f_aug(x), dx):
-                alpha *= 0.5  # Reduce step size
+            # c1 = 1e-4    # Armijo parameter
+            # while f_aug(x + alpha * dx) > f_aug(x) + c1 * alpha * np.dot(grad_f_aug(x), dx):
+            #     alpha *= 0.5  # Reduce step size
 
             # Update x
             x += alpha * dx
@@ -189,7 +189,7 @@ if __name__ == "__main__":
     hessian_h_list = [lambda x: np.array([[2.0, 0.0],
                                           [0.0, 0.0]])]
 
-    x0 = np.array([-3.0, -2.0])
+    x0 = np.array([-3.0, 2.0])
 
     x_sol, mu_sol, x_hist = solve_inequality_constrained_kkt(
         f, grad_f, hessian_f,
