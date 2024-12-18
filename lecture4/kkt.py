@@ -3,7 +3,8 @@ import matplotlib.pyplot as plt
 
 def solve_equality_constrained_kkt(grad_f, hessian_f, c_list, grad_c_list, hessian_c_list=None, x0=None, lambda0=None, tol=1e-6, max_iter=50, beta=1e-6):
     """
-    Solves the equality-constrained optimization problem using the KKT conditions with Newton or Gauss-Newton methods.
+    Solves the equality-constrained optimization problem using the KKT conditions with Newton or Gauss-Newton methods,
+    with a line search based on KKT residual as the merit function.
 
     Args:
         grad_f (function): Gradient of the objective function, returns (n,).
@@ -26,6 +27,16 @@ def solve_equality_constrained_kkt(grad_f, hessian_f, c_list, grad_c_list, hessi
 
     x_history = [x.copy()]  # Store iteration history
 
+    def kkt_residual(x, lambda_):
+        """Compute the KKT residual."""
+        grad = grad_f(x) + np.sum([lambda_[i] * grad_c_list[i](x) for i in range(len(c_list))], axis=0)
+        c_vals = np.concatenate([c(x) for c in c_list])
+        return np.concatenate([grad, c_vals])
+
+    def merit_function(x, lambda_):
+        """Merit function based on KKT residual norm."""
+        return np.linalg.norm(kkt_residual(x, lambda_))
+
     for i in range(max_iter):
         # Compute the gradient of f and the Hessian
         grad = grad_f(x)             # (n,) float
@@ -33,19 +44,14 @@ def solve_equality_constrained_kkt(grad_f, hessian_f, c_list, grad_c_list, hessi
 
         # Assemble constraints and Jacobians
         c_vals = np.concatenate([c(x) for c in c_list])  # (m,) float
-        
         C = np.vstack([grad_c(x).reshape(1, -1) for grad_c in grad_c_list])  # (m,n) float
 
         # Add Hessian contributions from constraints if available
-        if hessian_c_list is not None:
+        if hessian_c_list is not None:  # Else Gauss-Newton methods
             # Newton method
             for hessian_c, lambda_i in zip(hessian_c_list, lambda_):
                 H += lambda_i * hessian_c(x)
-        else:
-            # Gauss-Newton method
-            # H += C.T @ C
-            pass
-        
+
         n, m = H.shape[0], C.shape[0]
         reg_matrix_H = np.zeros((n, n))
         reg_matrix_C = np.zeros((m, m))
@@ -72,7 +78,7 @@ def solve_equality_constrained_kkt(grad_f, hessian_f, c_list, grad_c_list, hessi
             # Increase regularization value if conditions are not met
             reg_matrix_H += reg_value * np.eye(n)
             reg_matrix_C += reg_value * np.eye(m)
-            reg_value *= 1.5    # # NOTE: This value can be tuned for the good performance
+            reg_value *= 1.5    # NOTE: This value can be tuned for the good performance
 
         # KKT_rhs is (n+m,) float
         KKT_rhs = -np.concatenate((grad + C.T @ lambda_, c_vals))
@@ -81,13 +87,26 @@ def solve_equality_constrained_kkt(grad_f, hessian_f, c_list, grad_c_list, hessi
         delta = np.linalg.solve(KKT_matrix, KKT_rhs)  # (n+m,) float
 
         # Extract updates
-        n = x.size
         delta_x = delta[:n]      # (n,)
         delta_lambda = delta[n:] # (m,)
 
+        # Line search on merit function
+        phi_old = merit_function(x, lambda_)
+        alpha = 1.0
+        eta = 1e-4  # Line search parameter
+        while True:
+            x_new = x + alpha * delta_x
+            lambda_new = lambda_ + alpha * delta_lambda
+            phi_new = merit_function(x_new, lambda_new)
+
+            if phi_new <= phi_old + eta * alpha * np.dot(kkt_residual(x, lambda_), delta):
+                break
+
+            alpha *= 0.5
+
         # Update variables
-        x = x + delta_x
-        lambda_ = lambda_ + delta_lambda
+        x += alpha * delta_x
+        lambda_ += alpha * delta_lambda
 
         # Store iteration history
         x_history.append(x.copy())
@@ -162,7 +181,7 @@ if __name__ == "__main__":
     # hessian_c_list = None   # Gauss-Newton method
 
     # Initial guesses as float arrays
-    x0 = np.array([-3.0, 2.0], dtype=float)
+    x0 = np.array([-1.0, -1.0], dtype=float)
     lambda0 = np.array([0.0], dtype=float)
 
     # Solve the KKT system using Newton's method
