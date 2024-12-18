@@ -61,7 +61,7 @@ def solve_inequality_constrained_kkt(f, grad_f, hessian_f,
         val = f(x)
         for i in range(m):
             hi = h_list[i](x)[0]
-            viol = max(0, hi)   # violation if hi>0, else 0
+            viol = max(0, hi)   # violation if hi>0
             val += mu[i]*hi + 0.5*rho*(viol**2)
         return val
 
@@ -70,10 +70,6 @@ def solve_inequality_constrained_kkt(f, grad_f, hessian_f,
         for i in range(m):
             hi = h_list[i](x)[0]
             gh = grad_h_list[i](x)
-            viol = max(0, hi)
-            # d/dx [ mu[i]*hi + (rho/2)*viol^2 ]
-            # = mu[i]*gh + rho*viol*(1 if hi>0 else 0)*gh
-            # Since viol = max(0,hi), if hi>0, viol=hi
             if hi > 0:
                 g += mu[i]*gh + rho*hi*gh
             else:
@@ -90,7 +86,7 @@ def solve_inequality_constrained_kkt(f, grad_f, hessian_f,
             # If hi>0: second derivative adds rho*gh*gh^T
             if hi > 0:
                 H += rho * np.outer(gh, gh)
-            # No additional term from mu[i]*hi since it's linear in x
+                # No additional term from mu[i]*hi since it's linear in x
         return H
 
     for outer_iter in range(max_outer):
@@ -99,7 +95,6 @@ def solve_inequality_constrained_kkt(f, grad_f, hessian_f,
         h_vals = np.array([h(x)[0] for h in h_list])
         # Update multipliers: mu_i = max(0, mu_i + rho*h_i(x))
         mu = np.maximum(0.0, mu + rho*h_vals)
-
         x_history.append(x.copy())
 
         # Check conditions: h_i(x) ≤ 0 feasible
@@ -142,23 +137,21 @@ def plot_landscape(f, curve=None, points=None):
 
     plt.xlabel("x[0]")
     plt.ylabel("x[1]")
-    plt.title("Objective Function Landscape with Inequality Constraint (h(x) ≤ 0)")
+    plt.title("Objective Function Landscape with Inequality Constraint")
     plt.legend()
     plt.grid()
     plt.show()
 
 if __name__ == "__main__":
-    # Example usage:
     Q = np.diag([0.5, 1.0])
     f = lambda x: 0.5*np.dot((x - np.array([1., 0.])), Q @ (x - np.array([1.,0.])))
     grad_f = lambda x: Q @ (x - np.array([1.,0.]))
     hessian_f = lambda x: Q
 
-    # h(x)= x1-(x0^2+2x0) ≤ 0
-    h_list = [lambda x: np.array([ x[1] - (x[0]**2 + 2.0*x[0]) ])]
-    grad_h_list = [lambda x: np.array([-2.0*x[0]-2.0, 1.0])]
+    h_list = [lambda x: np.array([ (x[0]**2 + 2.0*x[0] - x[1]) ])]
+    grad_h_list = [lambda x: np.array([2.0*x[0]+2.0, -1.0])]
 
-    x0 = np.array([-1.0, -1.0])
+    x0 = np.array([-3.0, -2.0])
     x_sol, mu_sol, x_hist = solve_inequality_constrained_kkt(f, grad_f, hessian_f,
                                                              h_list, grad_h_list,
                                                              x0, mu0=None,
@@ -169,4 +162,5 @@ if __name__ == "__main__":
 
     xc = np.linspace(-3.2, 1.2, 100)
     yc = xc**2 + 2.0*xc
+
     plot_landscape(f, curve=(xc, yc), points=x_hist)
