@@ -6,68 +6,68 @@ class LQR:
         self.A = A
         self.B = B
         self.Q = Q
-        self.R = np.array([[R]])  # Ensure R is a 2D array
+        self.R = R  # Ensure R is a 2D array
         self.QN = QN
         self.x0 = x0
         self.h = h
         self.T = T
         self.N = int(T / h) + 1
-        self.thist = np.linspace(0, T, self.N)
-        self.xhist = np.tile(x0.reshape(-1, 1), self.N)
-        self.uhist = np.zeros(self.N - 1)
-        self.Δu = np.ones(self.N - 1)
-        self.λhist = np.zeros((A.shape[0], self.N))
+        self.t_hist = np.linspace(0, T, self.N)
+        self.x_hist = np.tile(x0.reshape(-1, 1), self.N)
+        self.u_hist = np.zeros(self.N - 1)
+        self.delta_u = np.ones(self.N - 1)
+        self.λ_hist = np.zeros((A.shape[0], self.N))
 
-    def cost(self, xhist, uhist):
-        cost = 0.5 * xhist[:, -1].T @ self.QN @ xhist[:, -1]
+    def cost(self, x_hist, u_hist):
+        cost = 0.5 * x_hist[:, -1].T @ self.QN @ x_hist[:, -1]
         for k in range(self.N - 1):
-            cost += 0.5 * xhist[:, k].T @ self.Q @ xhist[:, k] + 0.5 * uhist[k] ** 2 * self.R[0, 0]
+            cost += 0.5 * x_hist[:, k].T @ self.Q @ x_hist[:, k] + 0.5 * u_hist[k] ** 2 * self.R[0, 0]
         return cost
 
-    def rollout(self, xhist, uhist):
-        xnew = np.zeros_like(xhist)
-        xnew[:, 0] = xhist[:, 0]
+    def rollout(self, x_hist, u_hist):
+        xnew = np.zeros_like(x_hist)
+        xnew[:, 0] = x_hist[:, 0]
         for k in range(self.N - 1):
-            xnew[:, k + 1] = self.A @ xnew[:, k] + self.B.flatten() * uhist[k]
+            xnew[:, k + 1] = self.A @ xnew[:, k] + self.B.flatten() * u_hist[k]
         return xnew
 
     def solve(self, tol=1e-2, b=1e-2):
-        self.xhist = self.rollout(self.xhist, self.uhist)
-        print("Initial cost:", self.cost(self.xhist, self.uhist))
+        self.x_hist = self.rollout(self.x_hist, self.u_hist)
+        print("Initial cost:", self.cost(self.x_hist, self.u_hist))
 
         α = 1.0
         iter_count = 0
 
-        while np.max(np.abs(self.Δu)) > tol:
-            # Backward pass to compute λ and Δu
-            self.λhist[:, -1] = self.QN @ self.xhist[:, -1]
+        while np.max(np.abs(self.delta_u)) > tol:
+            # Backward pass to compute λ and delta_u
+            self.λ_hist[:, -1] = self.QN @ self.x_hist[:, -1]
             for k in range(self.N - 2, -1, -1):
-                self.Δu[k] = -(self.uhist[k] + np.linalg.solve(self.R, self.B.T @ self.λhist[:, k + 1]).item())
-                self.λhist[:, k] = self.Q @ self.xhist[:, k] + self.A.T @ self.λhist[:, k + 1]
+                self.delta_u[k] = -(self.u_hist[k] + np.linalg.solve(self.R, self.B.T @ self.λ_hist[:, k + 1]).item())
+                self.λ_hist[:, k] = self.Q @ self.x_hist[:, k] + self.A.T @ self.λ_hist[:, k + 1]
 
             # Forward pass with line search
             α = 1.0
-            unew = self.uhist + α * self.Δu
-            xnew = self.rollout(self.xhist, unew)
+            unew = self.u_hist + α * self.delta_u
+            xnew = self.rollout(self.x_hist, unew)
 
-            while self.cost(xnew, unew) > self.cost(self.xhist, self.uhist) - b * α * np.sum(self.Δu ** 2):
+            while self.cost(xnew, unew) > self.cost(self.x_hist, self.u_hist) - b * α * np.sum(self.delta_u ** 2):
                 α *= 0.5
-                unew = self.uhist + α * self.Δu
-                xnew = self.rollout(self.xhist, unew)
+                unew = self.u_hist + α * self.delta_u
+                xnew = self.rollout(self.x_hist, unew)
 
             # Update control and state trajectories
-            self.uhist = unew
-            self.xhist = xnew
+            self.u_hist = unew
+            self.x_hist = xnew
             iter_count += 1
 
         print("Iterations:", iter_count)
-        print("Final cost:", self.cost(self.xhist, self.uhist))
-        return self.xhist, self.uhist
+        print("Final cost:", self.cost(self.x_hist, self.u_hist))
+        return self.x_hist, self.u_hist
 
     def plot_results(self):
         plt.figure(figsize=(10, 6))
-        plt.plot(self.thist, self.xhist[0, :], label="Position")
-        plt.plot(self.thist, self.xhist[1, :], label="Velocity")
+        plt.plot(self.t_hist, self.x_hist[0, :], label="Position")
+        plt.plot(self.t_hist, self.x_hist[1, :], label="Velocity")
         plt.xlabel("Time (s)")
         plt.ylabel("State")
         plt.legend()
@@ -76,7 +76,7 @@ class LQR:
         plt.show()
 
         plt.figure(figsize=(10, 6))
-        plt.plot(self.thist[:-1], self.uhist, label="Control")
+        plt.plot(self.t_hist[:-1], self.u_hist, label="Control")
         plt.xlabel("Time (s)")
         plt.ylabel("Control Input")
         plt.legend()
@@ -98,7 +98,7 @@ if __name__ == "__main__":
 
     # Define cost weights
     Q = np.eye(2)  # state cost
-    R = 0.1  # control cost
+    R = np.array([[0.1]])  # control cost
     QN = np.eye(2)  # terminal state cost
 
     # Initial conditions
@@ -106,5 +106,5 @@ if __name__ == "__main__":
 
     # Solve LQR problem
     lqr = LQR(A, B, Q, R, QN, x0, h, T)
-    xhist, uhist = lqr.solve()
+    x_hist, u_hist = lqr.solve()
     lqr.plot_results()
