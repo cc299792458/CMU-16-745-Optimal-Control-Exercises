@@ -13,12 +13,12 @@ class LQR:
         self.h = h
         self.T = T
         self.N = int(T / h) + 1
-        self.thist = np.linspace(0, T, self.N)
+        self.t_hist = np.linspace(0, T, self.N)
 
-    def cost(self, xhist, uhist):
-        cost = 0.5 * xhist[:, -1].T @ self.QN @ xhist[:, -1]
+    def cost(self, x_hist, u_hist):
+        cost = 0.5 * x_hist[:, -1].T @ self.QN @ x_hist[:, -1]
         for k in range(self.N - 1):
-            cost += 0.5 * (xhist[:, k].T @ self.Q @ xhist[:, k] + uhist[:, k, 0].T @ self.R @ uhist[:, k, 0])
+            cost += 0.5 * (x_hist[:, k].T @ self.Q @ x_hist[:, k] + u_hist[:, k, 0].T @ self.R @ u_hist[:, k, 0])
         return cost
 
     def solve(self):
@@ -34,23 +34,23 @@ class LQR:
             K[:, :, k] = np.linalg.inv(self.R + self.B.T @ P[:, :, k + 1] @ self.B) @ (self.B.T @ P[:, :, k + 1] @ self.A)
             P[:, :, k] = self.Q + self.A.T @ P[:, :, k + 1] @ (self.A - self.B @ K[:, :, k])
 
-        xhist = np.zeros((n, self.N))
-        uhist = np.zeros((m, self.N - 1, 1))
-        xhist[:, 0] = self.x0
+        x_hist = np.zeros((n, self.N))
+        u_hist = np.zeros((m, self.N - 1, 1))
+        x_hist[:, 0] = self.x0
 
         for k in range(self.N - 1):
-            uhist[:, k, 0] = -K[:, :, k] @ xhist[:, k]
-            xhist[:, k + 1] = self.A @ xhist[:, k] + self.B @ uhist[:, k, 0]
+            u_hist[:, k, 0] = -K[:, :, k] @ x_hist[:, k]
+            x_hist[:, k + 1] = self.A @ x_hist[:, k] + self.B @ u_hist[:, k, 0]
 
-        return xhist, uhist, K
+        return x_hist, u_hist, K
 
-    def plot_results(self, xhist, uhist, xhist_inf=None, uhist_inf=None):
+    def plot_results(self, x_hist, u_hist, x_hist_inf=None, u_hist_inf=None):
         plt.figure()
-        plt.plot(self.thist, xhist[0, :], label="Position (Finite K)")
-        plt.plot(self.thist, xhist[1, :], label="Velocity (Finite K)")
-        if xhist_inf is not None:
-            plt.plot(self.thist, xhist_inf[0, :], label="Position (Infinite K)", linestyle='--')
-            plt.plot(self.thist, xhist_inf[1, :], label="Velocity (Infinite K)", linestyle='--')
+        plt.plot(self.t_hist, x_hist[0, :], label="Position (Finite K)")
+        plt.plot(self.t_hist, x_hist[1, :], label="Velocity (Finite K)")
+        if x_hist_inf is not None:
+            plt.plot(self.t_hist, x_hist_inf[0, :], label="Position (Infinite K)", linestyle='--')
+            plt.plot(self.t_hist, x_hist_inf[1, :], label="Velocity (Infinite K)", linestyle='--')
         plt.xlabel("Time (s)")
         plt.ylabel("State")
         plt.legend()
@@ -58,9 +58,9 @@ class LQR:
         plt.show()
 
         plt.figure()
-        plt.plot(self.thist[:-1], uhist[0, :, 0], label="Control (Finite K)")
-        if uhist_inf is not None:
-            plt.plot(self.thist[:-1], uhist_inf[0, :, 0], label="Control (Infinite K)", linestyle='--')
+        plt.plot(self.t_hist[:-1], u_hist[0, :, 0], label="Control (Finite K)")
+        if u_hist_inf is not None:
+            plt.plot(self.t_hist[:-1], u_hist_inf[0, :, 0], label="Control (Infinite K)", linestyle='--')
         plt.xlabel("Time (s)")
         plt.ylabel("Control")
         plt.legend()
@@ -83,23 +83,23 @@ if __name__ == "__main__":
     x0 = np.array([1.0, 0.0])
 
     lqr = LQR(A, B, Q, R, QN, x0, h, T)
-    xhist, uhist, K = lqr.solve()
+    x_hist, u_hist, K = lqr.solve()
 
     # Compute infinite-horizon solution
     P_inf = solve_discrete_are(A, B, Q, R)
     K_inf = np.linalg.inv(R + B.T @ P_inf @ B) @ (B.T @ P_inf @ A)
 
     # Forward rollout with constant K_inf
-    xhist_inf = np.zeros((n, lqr.N))
-    uhist_inf = np.zeros((m, lqr.N - 1, 1))
-    xhist_inf[:, 0] = x0
+    x_hist_inf = np.zeros((n, lqr.N))
+    u_hist_inf = np.zeros((m, lqr.N - 1, 1))
+    x_hist_inf[:, 0] = x0
 
     for k in range(lqr.N - 1):
-        uhist_inf[:, k, 0] = -K_inf @ xhist_inf[:, k]
-        xhist_inf[:, k + 1] = A @ xhist_inf[:, k] + B @ uhist_inf[:, k, 0]
+        u_hist_inf[:, k, 0] = -K_inf @ x_hist_inf[:, k]
+        x_hist_inf[:, k + 1] = A @ x_hist_inf[:, k] + B @ u_hist_inf[:, k, 0]
 
     # Plot results
-    lqr.plot_results(xhist, uhist, xhist_inf, uhist_inf)
+    lqr.plot_results(x_hist, u_hist, x_hist_inf, u_hist_inf)
 
     plt.figure()
     plt.plot(np.arange(K.shape[2]), K[0, 0, :], label="K[0,0]")
@@ -115,8 +115,8 @@ if __name__ == "__main__":
     print(eigvals)
 
     # Compute costs for finite and infinite horizon
-    cost_finite = lqr.cost(xhist, uhist)
-    cost_infinite = lqr.cost(xhist_inf, uhist_inf)
+    cost_finite = lqr.cost(x_hist, u_hist)
+    cost_infinite = lqr.cost(x_hist_inf, u_hist_inf)
     
     print(f"Finite horizon cost: {cost_finite}")
     print(f"Infinite horizon cost: {cost_infinite}")

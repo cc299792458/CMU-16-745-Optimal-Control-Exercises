@@ -13,14 +13,14 @@ class LQR:
         self.h = h
         self.T = T
         self.N = int(T / h) + 1
-        self.thist = np.linspace(0, T, self.N)
+        self.t_hist = np.linspace(0, T, self.N)
 
-    def cost(self, xhist, uhist):
+    def cost(self, x_hist, u_hist):
         # LQR cost
-        val = 0.5 * xhist[:, -1].T @ self.QN @ xhist[:, -1]
+        val = 0.5 * x_hist[:, -1].T @ self.QN @ x_hist[:, -1]
         for k in range(self.N - 1):
-            val += 0.5 * (xhist[:, k].T @ self.Q @ xhist[:, k]
-                          + uhist[k].T @ self.R @ uhist[k])
+            val += 0.5 * (x_hist[:, k].T @ self.Q @ x_hist[:, k]
+                          + u_hist[k].T @ self.R @ u_hist[k])
         return val
 
     def solve(self):
@@ -60,15 +60,15 @@ class LQR:
         # Extract x, u
         z = sol[: (n + m) * (self.N - 1)]
         Z = z.reshape((n + m, self.N - 1), order="F")
-        xhist = np.hstack((self.x0.reshape(-1, 1), Z[m:, :]))
-        uhist = Z[:m, :].flatten()
+        x_hist = np.hstack((self.x0.reshape(-1, 1), Z[m:, :]))
+        u_hist = Z[:m, :].flatten()
 
-        return xhist, uhist
+        return x_hist, u_hist
 
-    def plot_results(self, xhist, uhist):
+    def plot_results(self, x_hist, u_hist):
         plt.figure()
-        plt.plot(self.thist, xhist[0, :], label="Position")
-        plt.plot(self.thist, xhist[1, :], label="Velocity")
+        plt.plot(self.t_hist, x_hist[0, :], label="Position")
+        plt.plot(self.t_hist, x_hist[1, :], label="Velocity")
         plt.xlabel("Time (s)")
         plt.ylabel("State")
         plt.legend()
@@ -76,7 +76,7 @@ class LQR:
         plt.show()
 
         plt.figure()
-        plt.plot(self.thist[:-1], uhist, label="Control")
+        plt.plot(self.t_hist[:-1], u_hist, label="Control")
         plt.xlabel("Time (s)")
         plt.ylabel("Control")
         plt.legend()
@@ -101,5 +101,5 @@ if __name__ == "__main__":
 
     # Solve
     lqr = LQR(A, B, Q, R, QN, x0, h, T)
-    xhist, uhist = lqr.solve()
-    lqr.plot_results(xhist, uhist)
+    x_hist, u_hist = lqr.solve()
+    lqr.plot_results(x_hist, u_hist)

@@ -12,12 +12,12 @@ class LQR:
         self.h = h
         self.T = T
         self.N = int(T / h) + 1
-        self.thist = np.linspace(0, T, self.N)
+        self.t_hist = np.linspace(0, T, self.N)
 
-    def cost(self, xhist, uhist):
-        cost = 0.5 * xhist[:, -1].T @ self.QN @ xhist[:, -1]
+    def cost(self, x_hist, u_hist):
+        cost = 0.5 * x_hist[:, -1].T @ self.QN @ x_hist[:, -1]
         for k in range(self.N - 1):
-            cost += 0.5 * (xhist[:, k].T @ self.Q @ xhist[:, k] + uhist[:, k].T @ self.R @ uhist[:, k])
+            cost += 0.5 * (x_hist[:, k].T @ self.Q @ x_hist[:, k] + u_hist[:, k].T @ self.R @ u_hist[:, k])
         return cost
 
     def solve(self):
@@ -37,20 +37,20 @@ class LQR:
             )
 
         # Forward rollout
-        xhist = np.zeros((n, self.N))
-        uhist = np.zeros((m, self.N - 1))
-        xhist[:, 0] = self.x0
+        x_hist = np.zeros((n, self.N))
+        u_hist = np.zeros((m, self.N - 1))
+        x_hist[:, 0] = self.x0
 
         for k in range(self.N - 1):
-            uhist[:, k] = -K[:, :, k] @ xhist[:, k]
-            xhist[:, k + 1] = self.A @ xhist[:, k] + self.B @ uhist[:, k]
+            u_hist[:, k] = -K[:, :, k] @ x_hist[:, k]
+            x_hist[:, k + 1] = self.A @ x_hist[:, k] + self.B @ u_hist[:, k]
 
-        return xhist, uhist, K
+        return x_hist, u_hist, K
 
-    def plot_results(self, xhist, uhist):
+    def plot_results(self, x_hist, u_hist):
         plt.figure()
-        plt.plot(self.thist, xhist[0, :], label="Position (DP)")
-        plt.plot(self.thist, xhist[1, :], label="Velocity (DP)")
+        plt.plot(self.t_hist, x_hist[0, :], label="Position (DP)")
+        plt.plot(self.t_hist, x_hist[1, :], label="Velocity (DP)")
         plt.xlabel("Time (s)")
         plt.ylabel("State")
         plt.legend()
@@ -58,7 +58,7 @@ class LQR:
         plt.show()
 
         plt.figure()
-        plt.plot(self.thist[:-1], uhist[0, :], label="Control (DP)")
+        plt.plot(self.t_hist[:-1], u_hist[0, :], label="Control (DP)")
         plt.xlabel("Time (s)")
         plt.ylabel("Control")
         plt.legend()
@@ -83,11 +83,11 @@ if __name__ == "__main__":
 
     # Solve LQR-DP
     lqr_dp = LQR(A, B, Q, R, QN, x0, h, T)
-    xhist, uhist, K = lqr_dp.solve()
+    x_hist, u_hist, K = lqr_dp.solve()
 
     # Plot results
-    lqr_dp.plot_results(xhist, uhist)
+    lqr_dp.plot_results(x_hist, u_hist)
 
     # Print cost
-    total_cost = lqr_dp.cost(xhist, uhist)
+    total_cost = lqr_dp.cost(x_hist, u_hist)
     print(f"Total cost: {total_cost}")
