@@ -44,10 +44,13 @@ class LQR:
 
         return xhist, uhist, K
 
-    def plot_results(self, xhist, uhist):
+    def plot_results(self, xhist, uhist, xhist_inf=None, uhist_inf=None):
         plt.figure()
-        plt.plot(self.thist, xhist[0, :], label="Position")
-        plt.plot(self.thist, xhist[1, :], label="Velocity")
+        plt.plot(self.thist, xhist[0, :], label="Position (Finite K)")
+        plt.plot(self.thist, xhist[1, :], label="Velocity (Finite K)")
+        if xhist_inf is not None:
+            plt.plot(self.thist, xhist_inf[0, :], label="Position (Infinite K)", linestyle='--')
+            plt.plot(self.thist, xhist_inf[1, :], label="Velocity (Infinite K)", linestyle='--')
         plt.xlabel("Time (s)")
         plt.ylabel("State")
         plt.legend()
@@ -55,7 +58,9 @@ class LQR:
         plt.show()
 
         plt.figure()
-        plt.plot(self.thist[:-1], uhist[0, :], label="Control")
+        plt.plot(self.thist[:-1], uhist[0, :], label="Control (Finite K)")
+        if uhist_inf is not None:
+            plt.plot(self.thist[:-1], uhist_inf[0, :], label="Control (Infinite K)", linestyle='--')
         plt.xlabel("Time (s)")
         plt.ylabel("Control")
         plt.legend()
@@ -70,7 +75,7 @@ if __name__ == "__main__":
                   [h]])
     n = 2
     m = 1
-    T = 10.0
+    T = 5.0
     Q = np.eye(n)
     R = 0.1 * np.eye(m)
     QN = np.eye(n)
@@ -78,7 +83,22 @@ if __name__ == "__main__":
 
     lqr = LQR(A, B, Q, R, QN, x0, h, T)
     xhist, uhist, K = lqr.solve()
-    lqr.plot_results(xhist, uhist)
+
+    # Compute infinite-horizon solution
+    P_inf = solve_discrete_are(A, B, Q, R)
+    K_inf = np.linalg.inv(R + B.T @ P_inf @ B) @ (B.T @ P_inf @ A)
+
+    # Forward rollout with constant K_inf
+    xhist_inf = np.zeros((n, lqr.N))
+    uhist_inf = np.zeros((m, lqr.N - 1))
+    xhist_inf[:, 0] = x0
+
+    for k in range(lqr.N - 1):
+        uhist_inf[:, k] = -K_inf @ xhist_inf[:, k]
+        xhist_inf[:, k + 1] = A @ xhist_inf[:, k] + B @ uhist_inf[:, k]
+
+    # Plot results
+    lqr.plot_results(xhist, uhist, xhist_inf, uhist_inf)
 
     plt.figure()
     plt.plot(np.arange(K.shape[2]), K[0, 0, :], label="K[0,0]")
@@ -88,21 +108,6 @@ if __name__ == "__main__":
     plt.legend()
     plt.grid()
     plt.show()
-
-    # Compute infinite-horizon solution
-    P_inf = solve_discrete_are(A, B, Q, R)
-    K_inf = np.linalg.inv(R + B.T @ P_inf @ B) @ (B.T @ P_inf @ A)
-    print("Infinite-horizon K:")
-    print(K_inf)
-
-    # Forward rollout with constant K_inf
-    xhist = np.zeros((n, lqr.N))
-    uhist = np.zeros((m, lqr.N - 1))
-    xhist[:, 0] = x0
-
-    for k in range(lqr.N - 1):
-        uhist[:, k] = -K_inf @ xhist[:, k]
-        xhist[:, k + 1] = A @ xhist[:, k] + B @ uhist[:, k]
 
     eigvals = np.linalg.eigvals(A - B @ K_inf)
     print("Closed-loop eigenvalues:")
