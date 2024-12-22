@@ -98,7 +98,7 @@ if __name__ == "__main__":
 
     # Define cost weights
     Q = np.eye(2)  # state cost
-    R = np.array([[0.1]])  # control cost
+    R = 0.1 * np.eye(1)  # control cost
     QN = np.eye(2)  # terminal state cost
 
     # Initial conditions
