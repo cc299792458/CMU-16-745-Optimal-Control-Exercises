@@ -18,7 +18,7 @@ class LQR:
     def cost(self, xhist, uhist):
         cost = 0.5 * xhist[:, -1].T @ self.QN @ xhist[:, -1]
         for k in range(self.N - 1):
-            cost += 0.5 * (xhist[:, k].T @ self.Q @ xhist[:, k] + uhist[k].T @ self.R @ uhist[k])
+            cost += 0.5 * (xhist[:, k].T @ self.Q @ xhist[:, k] + uhist[:, k, 0].T @ self.R @ uhist[:, k, 0])
         return cost
 
     def solve(self):
@@ -35,12 +35,12 @@ class LQR:
             P[:, :, k] = self.Q + self.A.T @ P[:, :, k + 1] @ (self.A - self.B @ K[:, :, k])
 
         xhist = np.zeros((n, self.N))
-        uhist = np.zeros((m, self.N - 1))
+        uhist = np.zeros((m, self.N - 1, 1))
         xhist[:, 0] = self.x0
 
         for k in range(self.N - 1):
-            uhist[:, k] = -K[:, :, k] @ xhist[:, k]
-            xhist[:, k + 1] = self.A @ xhist[:, k] + self.B @ uhist[:, k]
+            uhist[:, k, 0] = -K[:, :, k] @ xhist[:, k]
+            xhist[:, k + 1] = self.A @ xhist[:, k] + self.B @ uhist[:, k, 0]
 
         return xhist, uhist, K
 
@@ -58,14 +58,15 @@ class LQR:
         plt.show()
 
         plt.figure()
-        plt.plot(self.thist[:-1], uhist[0, :], label="Control (Finite K)")
+        plt.plot(self.thist[:-1], uhist[0, :, 0], label="Control (Finite K)")
         if uhist_inf is not None:
-            plt.plot(self.thist[:-1], uhist_inf[0, :], label="Control (Infinite K)", linestyle='--')
+            plt.plot(self.thist[:-1], uhist_inf[0, :, 0], label="Control (Infinite K)", linestyle='--')
         plt.xlabel("Time (s)")
         plt.ylabel("Control")
         plt.legend()
         plt.grid()
         plt.show()
+
 
 if __name__ == "__main__":
     h = 0.1
@@ -90,12 +91,12 @@ if __name__ == "__main__":
 
     # Forward rollout with constant K_inf
     xhist_inf = np.zeros((n, lqr.N))
-    uhist_inf = np.zeros((m, lqr.N - 1))
+    uhist_inf = np.zeros((m, lqr.N - 1, 1))
     xhist_inf[:, 0] = x0
 
     for k in range(lqr.N - 1):
-        uhist_inf[:, k] = -K_inf @ xhist_inf[:, k]
-        xhist_inf[:, k + 1] = A @ xhist_inf[:, k] + B @ uhist_inf[:, k]
+        uhist_inf[:, k, 0] = -K_inf @ xhist_inf[:, k]
+        xhist_inf[:, k + 1] = A @ xhist_inf[:, k] + B @ uhist_inf[:, k, 0]
 
     # Plot results
     lqr.plot_results(xhist, uhist, xhist_inf, uhist_inf)
@@ -112,3 +113,10 @@ if __name__ == "__main__":
     eigvals = np.linalg.eigvals(A - B @ K_inf)
     print("Closed-loop eigenvalues:")
     print(eigvals)
+
+    # Compute costs for finite and infinite horizon
+    cost_finite = lqr.cost(xhist, uhist)
+    cost_infinite = lqr.cost(xhist_inf, uhist_inf)
+    
+    print(f"Finite horizon cost: {cost_finite}")
+    print(f"Infinite horizon cost: {cost_infinite}")
