@@ -1,7 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.linalg import solve_discrete_are
 from osqp import OSQP
+from scipy.sparse import csc_matrix
+from scipy.linalg import solve_discrete_are
 
 # Model parameters
 g = 9.81  # m/s^2
@@ -105,9 +106,13 @@ D = np.vstack([C, U, THETA])
 lb = np.hstack([np.zeros(Nh * Nx), np.tile(umin - u_hover, Nh), -0.2 * np.ones(Nh)])
 ub = np.hstack([np.zeros(Nh * Nx), np.tile(umax - u_hover, Nh), 0.2 * np.ones(Nh)])
 
+# Convert matrices to sparse format
+H_sparse = csc_matrix(H)
+D_sparse = csc_matrix(D)
+
 # OSQP solver setup
 prob = OSQP()
-prob.setup(P=H, q=b, A=D, l=lb, u=ub, verbose=False, eps_abs=1e-8, eps_rel=1e-8, polish=True)
+prob.setup(P=H_sparse, q=b, A=D_sparse, l=lb, u=ub, verbose=False, eps_abs=1e-8, eps_rel=1e-8, polish=True)
 
 def mpc_controller(t, x, x_ref):
     # Update constraints
@@ -115,8 +120,8 @@ def mpc_controller(t, x, x_ref):
     ub[:Nx] = -A @ x
 
     for j in range(Nh - 1):
-        b[(Nu + j * (Nx + Nu)):(Nu + j * (Nx + Nu) + Nx)] = -Q @ x_ref
-    b[(Nu + (Nh - 1) * (Nx + Nu)):(Nu + (Nh - 1) * (Nx + Nu) + Nx)] = -P @ x_ref
+        b[(Nu + j * (Nx + Nu)):(j + 1) * (Nx + Nu)] = -Q @ x_ref
+    b[(Nu + (Nh - 1) * (Nx + Nu)):Nh * (Nx + Nu)] = -P @ x_ref
 
     prob.update(q=b, l=lb, u=ub)
     
@@ -141,16 +146,22 @@ def closed_loop(x0, controller, N):
 # Simulation
 x_ref = np.array([0.0, 1.0, 0.0, 0.0, 0.0, 0.0])
 x0 = np.array([10.0, 2.0, 0.0, 0.0, 0.0, 0.0])
-Nt = int(10.0 / h) + 1
-thist = np.linspace(0, 10.0, Nt)
+T = 6.0
+Nt = int(T / h) + 1
+thist = np.linspace(0, T, Nt)
 
 xhist1, uhist1 = closed_loop(x0, lambda t, x: lqr_controller(t, x, K, x_ref), Nt)
 xhist2, uhist2 = closed_loop(x0, lambda t, x: mpc_controller(t, x, x_ref), Nt)
 
-# Plot results
-plt.figure()
-plt.plot(thist, xhist1[0, :], label="x LQR")
-plt.plot(thist, xhist2[0, :], label="x MPC")
-plt.xlabel("Time")
-plt.legend()
+# Plot each state dimension in separate subplots
+fig, axes = plt.subplots(xhist1.shape[0], 1, figsize=(10, 12), sharex=True)
+
+for i, ax in enumerate(axes):
+    ax.plot(thist, xhist1[i, :], label=f"State {i+1} (LQR)")
+    ax.plot(thist, xhist2[i, :], label=f"State {i+1} (MPC)")
+    ax.set_ylabel(f"State {i+1}")
+    ax.legend(loc='upper right')
+
+axes[-1].set_xlabel("Time")
+plt.tight_layout()
 plt.show()
