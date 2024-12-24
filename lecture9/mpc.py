@@ -6,8 +6,6 @@ from osqp import OSQP
 from scipy.sparse import csc_matrix
 from scipy.linalg import solve_discrete_are
 
-# TODO: change the log dir, write LQR and MPC as class
-
 # Model parameters
 g = 9.81  # m/s^2
 m = 1.0   # kg
@@ -19,6 +17,7 @@ umin = np.array([0.2 * m * g, 0.2 * m * g])
 umax = np.array([0.6 * m * g, 0.6 * m * g])
 
 h = 0.05  # time step (20 Hz)
+Nh = 20  # Horizon
 
 # Planar Quadrotor Dynamics
 def quad_dynamics(x, u):
@@ -57,83 +56,97 @@ for i in range(2):
 # Cost weights
 Q = np.eye(6)
 R = 0.01 * np.eye(2)
-QN = np.eye(6)
-
-# LQR hover controller
 P = solve_discrete_are(A, B, Q, R)
-K = np.linalg.inv(R + B.T @ P @ B) @ (B.T @ P @ A)
 
-def lqr_controller(t, x, K, x_ref):
-    return u_hover - K @ (x - x_ref)
+class LQR:
+    def __init__(self, A, B, Q, R, u_hover):
+        self.A = A
+        self.B = B
+        self.Q = Q
+        self.R = R
+        self.u_hover = u_hover
+        self.P = solve_discrete_are(A, B, Q, R)
+        self.K = np.linalg.inv(R + B.T @ self.P @ B) @ (B.T @ self.P @ A)
 
-# MPC setup
-Nh = 20  # Horizon
-Nx = 6
-Nu = 2
+    def control(self, x, x_ref):
+        return self.u_hover - self.K @ (x - x_ref)
 
-# Cost matrices
-H = np.zeros((Nh * (Nx + Nu), Nh * (Nx + Nu)))
-b = np.zeros(Nh * (Nx + Nu))
+class MPC:
+    def __init__(self, A, B, Q, R, P, u_hover, umin, umax, Nh):
+        self.A = A
+        self.B = B
+        self.Q = Q
+        self.R = R
+        self.P = P
+        self.u_hover = u_hover
+        self.umin = umin
+        self.umax = umax
+        self.Nh = Nh
+        self.Nx = A.shape[0]
+        self.Nu = B.shape[1]
 
-for i in range(Nh - 1):
-    H[i * (Nx + Nu):(i + 1) * (Nx + Nu), i * (Nx + Nu):(i + 1) * (Nx + Nu)] = np.block([
-        [R, np.zeros((Nu, Nx))],
-        [np.zeros((Nx, Nu)), Q]
-    ])
-H[(Nh - 1) * (Nx + Nu):, (Nh - 1) * (Nx + Nu):] = np.block([
-    [R, np.zeros((Nu, Nx))],
-    [np.zeros((Nx, Nu)), P]
-])
+        # Cost matrices
+        self.H = np.zeros((Nh * (self.Nx + self.Nu), Nh * (self.Nx + self.Nu)))
+        for i in range(Nh - 1):
+            self.H[i * (self.Nx + self.Nu):(i + 1) * (self.Nx + self.Nu),
+                    i * (self.Nx + self.Nu):(i + 1) * (self.Nx + self.Nu)] = np.block([
+                [R, np.zeros((self.Nu, self.Nx))],
+                [np.zeros((self.Nx, self.Nu)), Q]
+            ])
+        self.H[(Nh - 1) * (self.Nx + self.Nu):, (Nh - 1) * (self.Nx + self.Nu):] = np.block([
+            [R, np.zeros((self.Nu, self.Nx))],
+            [np.zeros((self.Nx, self.Nu)), P]
+        ])
 
-# Dynamics and constraints matrices
-C = np.zeros((Nh * Nx, Nh * (Nx + Nu)))
-for i in range(Nh):
-    if i == 0:
-        # First step: Initial control input and state
-        C[:Nx, :Nu] = B  # B for u_0
-        C[:Nx, Nu:(Nu + Nx)] = -np.eye(Nx)  # -I for x_1
-    else:
-        # Subsequent steps: Dynamics relationship
-        C[i * Nx:(i + 1) * Nx, (i - 1) * (Nx + Nu) + Nu:i* (Nx + Nu)] = A  # A for x_k
-        C[i * Nx:(i + 1) * Nx, i * (Nx + Nu):i * (Nx + Nu) + Nu] = B  # B for u_k
-        C[i * Nx:(i + 1) * Nx, i * (Nx + Nu) + Nu:(i + 1) * (Nx + Nu)] = -np.eye(Nx)  # -I for x_{k+1}
+        # Dynamics and constraints matrices
+        self.C = np.zeros((Nh * self.Nx, Nh * (self.Nx + self.Nu)))
+        for i in range(Nh):
+            if i == 0:
+                self.C[:self.Nx, :self.Nu] = B  # B for u_0
+                self.C[:self.Nx, self.Nu:(self.Nu + self.Nx)] = -np.eye(self.Nx)  # -I for x_1
+            else:
+                self.C[i * self.Nx:(i + 1) * self.Nx,
+                        (i - 1) * (self.Nx + self.Nu) + self.Nu:i * (self.Nx + self.Nu)] = A  # A for x_k
+                self.C[i * self.Nx:(i + 1) * self.Nx,
+                        i * (self.Nx + self.Nu):i * (self.Nx + self.Nu) + self.Nu] = B  # B for u_k
+                self.C[i * self.Nx:(i + 1) * self.Nx,
+                        i * (self.Nx + self.Nu) + self.Nu:(i + 1) * (self.Nx + self.Nu)] = -np.eye(self.Nx)  # -I for x_{k+1}
 
-U = np.zeros((Nh * Nu, Nh * (Nx + Nu)))
-for i in range(Nh):
-    U[i * Nu:(i + 1) * Nu, i * (Nx + Nu):i * (Nx + Nu) + Nu] = np.eye(Nu)
+        self.U = np.zeros((Nh * self.Nu, Nh * (self.Nx + self.Nu)))
+        for i in range(Nh):
+            self.U[i * self.Nu:(i + 1) * self.Nu, i * (self.Nx + self.Nu):i * (self.Nx + self.Nu) + self.Nu] = np.eye(self.Nu)
 
-THETA = np.zeros((Nh, Nh * (Nx + Nu)))
-for i in range(Nh):
-    THETA[i, i * (Nx + Nu) + 4] = 1
+        self.THETA = np.zeros((Nh, Nh * (self.Nx + self.Nu)))
+        for i in range(Nh):
+            self.THETA[i, i * (self.Nx + self.Nu) + 4] = 1
 
-D = np.vstack([C, U, THETA])
-lb = np.hstack([np.zeros(Nh * Nx), np.tile(umin - u_hover, Nh), -0.2 * np.ones(Nh)])
-ub = np.hstack([np.zeros(Nh * Nx), np.tile(umax - u_hover, Nh), 0.2 * np.ones(Nh)])
+        self.D = np.vstack([self.C, self.U, self.THETA])
+        self.lb = np.hstack([np.zeros(Nh * self.Nx), np.tile(umin - u_hover, Nh), -0.2 * np.ones(Nh)])
+        self.ub = np.hstack([np.zeros(Nh * self.Nx), np.tile(umax - u_hover, Nh), 0.2 * np.ones(Nh)])
 
-# Convert matrices to sparse format
-H_sparse = csc_matrix(H)
-D_sparse = csc_matrix(D)
+        # Convert matrices to sparse format
+        self.H_sparse = csc_matrix(self.H)
+        self.D_sparse = csc_matrix(self.D)
 
-# OSQP solver setup
-prob = OSQP()
-prob.setup(P=H_sparse, q=b, A=D_sparse, l=lb, u=ub, verbose=False, eps_abs=1e-8, eps_rel=1e-8, polish=True)
+        # OSQP solver setup
+        self.prob = OSQP()
+        self.prob.setup(P=self.H_sparse, q=np.zeros(Nh * (self.Nx + self.Nu)), A=self.D_sparse, l=self.lb, u=self.ub, verbose=False, eps_abs=1e-8, eps_rel=1e-8, polish=True)
 
-def mpc_controller(t, x, x_ref):
-    # Update constraints
-    lb[:Nx] = -A @ x
-    ub[:Nx] = -A @ x
+    def control(self, x, x_ref):
+        # Update constraints
+        self.lb[:self.Nx] = -self.A @ x
+        self.ub[:self.Nx] = -self.A @ x
 
-    for j in range(Nh - 1):
-        b[(Nu + j * (Nx + Nu)):(j + 1) * (Nx + Nu)] = -Q @ x_ref
-    b[(Nu + (Nh - 1) * (Nx + Nu)):Nh * (Nx + Nu)] = -P @ x_ref
+        b = np.zeros(self.Nh * (self.Nx + self.Nu))
+        for j in range(self.Nh - 1):
+            b[(self.Nu + j * (self.Nx + self.Nu)):(j + 1) * (self.Nx + self.Nu)] = -self.Q @ x_ref
+        b[(self.Nu + (self.Nh - 1) * (self.Nx + self.Nu)):self.Nh * (self.Nx + self.Nu)] = -self.P @ x_ref
 
-    prob.update(q=b, l=lb, u=ub)
-    
-    # Solve QP
-    results = prob.solve()
-    delta_u = results.x[:Nu]
+        self.prob.update(q=b, l=self.lb, u=self.ub)
+        results = self.prob.solve()
+        delta_u = results.x[:self.Nu]
 
-    return u_hover + delta_u
+        return self.u_hover + delta_u
 
 def closed_loop(x0, controller, N):
     xhist = np.zeros((len(x0), N))
@@ -154,8 +167,11 @@ T = 6.0
 Nt = int(T / h) + 1
 thist = np.linspace(0, T, Nt)
 
-xhist1, uhist1 = closed_loop(x0, lambda t, x: lqr_controller(t, x, K, x_ref), Nt)
-xhist2, uhist2 = closed_loop(x0, lambda t, x: mpc_controller(t, x, x_ref), Nt)
+lqr = LQR(A, B, Q, R, u_hover)
+mpc = MPC(A, B, Q, R, P, u_hover, umin, umax, Nh)
+
+xhist1, uhist1 = closed_loop(x0, lambda t, x: lqr.control(x, x_ref), Nt)
+xhist2, uhist2 = closed_loop(x0, lambda t, x: mpc.control(x, x_ref), Nt)
 
 # Plot each state dimension in separate subplots
 fig, axes = plt.subplots(xhist1.shape[0], 1, figsize=(10, 12), sharex=True)
@@ -225,5 +241,5 @@ def animate_trajectory(xhist, title, save_path=None):
         plt.show()
 
 # Generate animations for LQR and MPC
-animate_trajectory(xhist1, title="LQR Trajectory", save_path="lqr_trajectory.gif")
-animate_trajectory(xhist2, title="MPC Trajectory", save_path="mpc_trajectory.gif")
+animate_trajectory(xhist1, title="LQR Trajectory", save_path=None)
+animate_trajectory(xhist2, title="MPC Trajectory", save_path=None)
