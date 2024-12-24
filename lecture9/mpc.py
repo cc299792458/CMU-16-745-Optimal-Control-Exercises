@@ -1,8 +1,12 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+
 from osqp import OSQP
 from scipy.sparse import csc_matrix
 from scipy.linalg import solve_discrete_are
+
+# TODO: change the log dir, write LQR and MPC as class
 
 # Model parameters
 g = 9.81  # m/s^2
@@ -53,7 +57,7 @@ for i in range(2):
 # Cost weights
 Q = np.eye(6)
 R = 0.01 * np.eye(2)
-Qn = np.eye(6)
+QN = np.eye(6)
 
 # LQR hover controller
 P = solve_discrete_are(A, B, Q, R)
@@ -165,3 +169,61 @@ for i, ax in enumerate(axes):
 axes[-1].set_xlabel("Time")
 plt.tight_layout()
 plt.show()
+
+def animate_trajectory(xhist, title, save_path=None):
+    """
+    Creates an animation of the trajectory using x and y from xhist.
+
+    Args:
+        xhist: ndarray of shape (Nx, Nt) representing the trajectory states over time.
+        title: str, title of the animation.
+        save_path: str or None, path to save the animation file, or None to skip saving.
+    """
+    # Ensure xhist is valid
+    assert xhist.ndim == 2, "xhist must be a 2D NumPy array"
+    assert xhist.shape[0] >= 3, "xhist must have at least 3 rows for x, y, and theta"
+
+    fig, ax = plt.subplots(figsize=(6, 6))
+    ax.set_xlim(-12, 12)  # Adjust as per your trajectory range
+    ax.set_ylim(0, 15)
+    ax.set_title(title)
+    ax.set_xlabel("x position")
+    ax.set_ylabel("y position")
+    ax.grid(True)
+    
+    # Initialize point and orientation line
+    point, = ax.plot([], [], 'bo', label="Quadrotor Position")
+    orientation_line, = ax.plot([], [], 'r-', label="Orientation")
+    ax.legend(loc="upper right")
+
+    def init():
+        point.set_data([], [])
+        orientation_line.set_data([], [])
+        return point, orientation_line
+
+    def update(frame):
+        if frame >= xhist.shape[1]:
+            raise IndexError("Frame index out of range for xhist")
+
+        # Extract x, y, and theta
+        x, y, theta = xhist[0, frame], xhist[1, frame], xhist[2, frame]
+        point.set_data([x], [y])  # Ensure x, y are sequences
+        orientation_line.set_data(
+            [x, x + 0.5 * np.cos(theta)],  # Line endpoint for orientation
+            [y, y + 0.5 * np.sin(theta)]
+        )
+        return point, orientation_line
+
+    ani = animation.FuncAnimation(
+        fig, update, frames=xhist.shape[1],
+        init_func=init, blit=True, interval=50
+    )
+
+    if save_path:
+        ani.save(save_path, writer='imagemagick', fps=20)
+    else:
+        plt.show()
+
+# Generate animations for LQR and MPC
+animate_trajectory(xhist1, title="LQR Trajectory", save_path="lqr_trajectory.gif")
+animate_trajectory(xhist2, title="MPC Trajectory", save_path="mpc_trajectory.gif")
