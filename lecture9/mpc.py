@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
@@ -120,6 +121,7 @@ def rollout(x0, controller, N):
 
     for k in range(N - 1):
         u = controller(k, xhist[:, k])
+        # There might be slight numerical overflow.
         uhist[:, k] = np.clip(u, umin, umax)
         xhist[:, k + 1] = quad_dynamics_rk4(xhist[:, k], uhist[:, k])
 
@@ -180,6 +182,9 @@ def animate_trajectory(xhist, title, save_path=None):
         plt.show()
 
 if __name__ == '__main__':
+    # Log path
+    log_dir = os.path.dirname(os.path.abspath(__file__))
+
     # Model parameters
     g = 9.81  # m/s^2
     m = 1.0   # kg
@@ -243,5 +248,5 @@ if __name__ == '__main__':
     plt.show()
 
     # Generate animations for LQR and MPC
-    animate_trajectory(xhist1, title="LQR Trajectory", save_path=None)
-    animate_trajectory(xhist2, title="MPC Trajectory", save_path=None)
+    animate_trajectory(xhist1, title="LQR Trajectory", save_path=log_dir + "/lqr_trajectory.gif")
+    animate_trajectory(xhist2, title="MPC Trajectory", save_path=log_dir + "/mpc_trajectory.gif")
